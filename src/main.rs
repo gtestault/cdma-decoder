@@ -29,12 +29,12 @@ const GPS_REGISTER_PROPS: [(u16, u16); 24] = [
 ];
 const CODE_LENGTH: u16 = 1024;
 
-const TOP_PUSH_REG: u16 = 2;
-const BOT_PUSH_REG_1: u16 = 1;
-const BOT_PUSH_REG_2: u16 = 2;
-const BOT_PUSH_REG_3: u16 = 5;
-const BOT_PUSH_REG_4: u16 = 7;
-const BOT_PUSH_REG_5: u16 = 8;
+const TOP_PUSH_REG: u16 = 3;
+const BOT_PUSH_REG_1: u16 = 2;
+const BOT_PUSH_REG_2: u16 = 3;
+const BOT_PUSH_REG_3: u16 = 6;
+const BOT_PUSH_REG_4: u16 = 8;
+const BOT_PUSH_REG_5: u16 = 9;
 
 
 fn main() {
@@ -42,7 +42,11 @@ fn main() {
     let signal = fs::read_to_string(filename).expect("this should work");
     let signal: Vec<i32> = signal.split_whitespace().map(|num| num.parse().unwrap()).collect();
     let mut gps1 = ShiftRegGPS::new(0);
-    println!("{:?}", gps1.get_code());
+    let gps_codes: Vec<Vec<u16>> =
+        (0..24).map(|gps_id| {
+            ShiftRegGPS::new(gps_id).get_code()
+        }).collect();
+    println!("{:?}", gps_codes[0]);
 }
 
 fn arg_file() -> Result<String, &'static str> {
