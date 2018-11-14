@@ -27,7 +27,7 @@ const GPS_REGISTER_PROPS: [(u16, u16); 24] = [
     (1, 3),
     (4, 6),
 ];
-const CODE_LENGTH: u16 = 1024;
+const CODE_LENGTH: u16 = 1023;
 
 const TOP_PUSH_REG: u16 = 3;
 const BOT_PUSH_REG_1: u16 = 2;
@@ -36,17 +36,17 @@ const BOT_PUSH_REG_3: u16 = 6;
 const BOT_PUSH_REG_4: u16 = 8;
 const BOT_PUSH_REG_5: u16 = 9;
 
-
 fn main() {
     let filename = arg_file().expect("filename for signal expected as argument");
     let signal = fs::read_to_string(filename).expect("this should work");
     let signal: Vec<i32> = signal.split_whitespace().map(|num| num.parse().unwrap()).collect();
-    let mut gps1 = ShiftRegGPS::new(0);
     let gps_codes: Vec<Vec<u16>> =
         (0..24).map(|gps_id| {
             ShiftRegGPS::new(gps_id).get_code()
         }).collect();
-    println!("{:?}", gps_codes[0]);
+    for gps_id in 0..24 {
+        Decoder{signal: signal.clone(), gps_codes: &gps_codes}.decode_with_gps(gps_id);
+    }
 }
 
 fn arg_file() -> Result<String, &'static str> {
@@ -55,6 +55,57 @@ fn arg_file() -> Result<String, &'static str> {
         return Err("expected filename");
     }
     Ok(args.remove(1))
+}
+
+struct Decoder<'a> {
+    signal: Vec<i32>,
+    gps_codes: &'a Vec<Vec<u16>>
+}
+
+impl<'a> Decoder<'a> {
+    #[inline]
+    fn high_peak() -> i32 {
+        2i32.pow((12)/2) - 1
+    }
+
+    #[inline]
+    fn low_peak() -> i32 {
+        -2i32.pow((12)/2) - 1
+    }
+
+    fn rotate_signal_right(&mut self) {
+        let chip = self.signal.pop().unwrap();
+        self.signal.insert(0, chip)
+    }
+
+    fn get_bit(&self, gps_id: usize) -> i16 {
+        let mut scalar_product = 0;
+        for i in 0..CODE_LENGTH {
+            let chip = if self.gps_codes[gps_id][i as usize] == 0  {
+              -1
+            } else {
+                1
+            };
+            scalar_product += chip * self.signal[i as usize];
+        }
+        scalar_product /= 10; //register has 10 cells
+        if scalar_product >= Decoder::high_peak() {
+            return 1
+        } else if scalar_product <= Decoder::low_peak() {
+            return 0
+        }
+        -1
+    }
+
+    fn decode_with_gps(&mut self, gps_id: usize) {
+        for delta in 0..CODE_LENGTH {
+            let bit = self.get_bit(gps_id);
+            self.rotate_signal_right();
+            if bit != -1 {
+                println!("found bit: {} for gps: {} at delta {}\n", bit, gps_id, delta)
+            }
+        }
+    }
 }
 
 struct ShiftRegGPS {
@@ -73,7 +124,7 @@ impl ShiftRegGPS {
         ShiftRegGPS { top: 0xffff, bot: 0xffff, id }
     }
 
-    //inverse bit order
+    //get the bit from the nth register cell starting from the left, 1 indexed
     fn get_bit(index: u16, reg: u16) -> u16 {
         if ((1 << (ShiftRegGPS::reg_size() - index)) & reg) == 0 {
             return 0;
