@@ -77,6 +77,12 @@ impl ShiftRegGPS {
         return 1;
     }
 
+    fn push_bit_to_front(bit: u16, reg: &mut u16) {
+        *reg >>= 1;
+        *reg &= !(1u16 << ShiftRegGPS::reg_size() - 1);
+        *reg |= bit << ShiftRegGPS::reg_size() - 1;
+    }
+
     fn next_bit(&mut self) -> u16 {
         let out_top = self.top & 0x0001;
         let next_top =
@@ -96,10 +102,8 @@ impl ShiftRegGPS {
                 ShiftRegGPS::get_bit(BOT_PUSH_REG_5, self.bot) ^
                 out_bot;
         //update state
-        self.top ^= 1 << ShiftRegGPS::reg_size();
-        self.bot ^= 1 << ShiftRegGPS::reg_size();
-        self.top |= next_top << ShiftRegGPS::reg_size();
-        self.bot |= next_bot << ShiftRegGPS::reg_size();
+        ShiftRegGPS::push_bit_to_front(next_top, &mut self.top);
+        ShiftRegGPS::push_bit_to_front(next_bot, &mut self.bot);
         out_top ^ calc_bot
     }
 
@@ -109,6 +113,32 @@ impl ShiftRegGPS {
             vec.push(self.next_bit())
         }
         vec
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_bit_test() {
+        assert_eq!(1, ShiftRegGPS::get_bit(2, 0b0000_0001_0000_0000));
+        assert_eq!(0, ShiftRegGPS::get_bit(2, 0b1111_1110_1111_1111));
+        assert_eq!(1, ShiftRegGPS::get_bit(10, 0b0000_0000_0000_0001));
+        assert_eq!(0, ShiftRegGPS::get_bit(10, 0b1111_1111_1111_1110));
+    }
+
+    #[test]
+    fn push_bit_to_front_test() {
+        let mut reg = 0b0000_0000_0000_0000;
+        ShiftRegGPS::push_bit_to_front(1, &mut reg);
+        assert_eq!(0b0000_0010_0000_0000, reg);
+        ShiftRegGPS::push_bit_to_front(1, &mut reg);
+        assert_eq!(0b0000_0011_0000_0000, reg);
+        ShiftRegGPS::push_bit_to_front(0, &mut reg);
+        println!("{}",format!("register value: {:b}", reg));
+        assert_eq!(0b0000_0001_1000_0000, reg);
     }
 }
 
